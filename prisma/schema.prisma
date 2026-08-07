@@ -1,0 +1,461 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Domain enums — mirror src/types/calculator.ts for type-safe persistence
+// ---------------------------------------------------------------------------
+
+enum GarageSize {
+  one_car
+  two_car
+  three_car
+  oversized
+}
+
+enum CoatingType {
+  epoxy
+  polyaspartic
+  polyurea
+  metallic
+  quartz
+  not_sure
+}
+
+enum FloorCondition {
+  excellent
+  good
+  fair
+  poor
+}
+
+enum CrackLevel {
+  none
+  minor
+  several
+  major
+}
+
+enum ExistingCoating {
+  none
+  paint
+  epoxy
+}
+
+enum DecorativeFinish {
+  none
+  standard_flakes
+  premium_flakes
+}
+
+enum Timeline {
+  asap
+  within_month
+  within_three_months
+  flexible
+}
+
+enum PreferredContactMethod {
+  email
+  phone
+  text
+}
+
+enum PropertyType {
+  detached
+  semi_detached
+  townhouse
+  commercial
+}
+
+enum PreferredContactTime {
+  morning
+  afternoon
+  evening
+  any
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum PublishStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum PageType {
+  LANDING
+  SERVICE
+  CITY
+  OTHER
+}
+
+// ---------------------------------------------------------------------------
+// Models
+// ---------------------------------------------------------------------------
+
+model Calculation {
+  id                String           @id @default(cuid())
+  city              String
+  squareFeet        Float
+  garageSize        GarageSize
+  coatingType       CoatingType
+  floorCondition    FloorCondition
+  crackLevel        CrackLevel
+  existingCoating   ExistingCoating
+  decorativeFinish  DecorativeFinish
+  stemWalls         Boolean          @default(false)
+  stepsCount        Int              @default(0)
+  moistureIssues    Boolean          @default(false)
+  timeline          Timeline
+  estimatedLow      Float
+  estimatedHigh     Float
+  recommendedSystem String
+  createdAt         DateTime         @default(now())
+
+  lead Lead?
+}
+
+model Lead {
+  id                     String                 @id @default(cuid())
+  referenceNumber        String                 @unique
+  calculationId          String                 @unique
+  calculation            Calculation            @relation(fields: [calculationId], references: [id], onDelete: Cascade)
+  name                   String
+  email                  String
+  phone                  String
+  preferredContactMethod PreferredContactMethod
+  propertyType           PropertyType
+  garageEmpty            Boolean
+  preferredContactTime   PreferredContactTime
+  additionalNotes        String?
+  internalNotes          String?
+  status                 LeadStatus             @default(NEW)
+  saleValue              Float?
+  soldAt                 DateTime?
+  archived               Boolean                @default(false)
+  assignments            Assignment[]
+  createdAt              DateTime               @default(now())
+  updatedAt              DateTime               @updatedAt
+}
+
+model Contractor {
+  id          String           @id @default(cuid())
+  companyName String
+  contactName String
+  phone       String
+  email       String
+  website     String?
+  cities      String
+  services    String
+  leadPrice   Float
+  notes       String?
+  status      ContractorStatus @default(ACTIVE)
+  assignments Assignment[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+}
+
+model Assignment {
+  id           String     @id @default(cuid())
+  lead         Lead       @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  leadId       String
+  contractor   Contractor @relation(fields: [contractorId], references: [id], onDelete: Cascade)
+  contractorId String
+  assignedAt   DateTime   @default(now())
+  sold         Boolean    @default(false)
+  notes        String?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+}
+
+model BusinessSetting {
+  id                 String   @id @default(cuid())
+  companyName        String
+  email              String
+  phone              String
+  defaultLeadPrice   Float
+  leadPricingMessage String?
+  supportEmail       String
+  updatedAt          DateTime @updatedAt
+}
+
+model EmailTemplate {
+  id        String   @id @default(cuid())
+  name      String
+  subject   String
+  body      String
+  updatedAt DateTime @updatedAt
+}
+
+enum ContractorStatus {
+  ACTIVE
+  PAUSED
+  ARCHIVED
+}
+
+// ---------------------------------------------------------------------------
+// Calculator / Pricing models
+// ---------------------------------------------------------------------------
+
+model PricingRule {
+  id          String      @id @default(cuid())
+  coatingType CoatingType
+  lowPerSqFt  Float
+  highPerSqFt Float
+  active      Boolean     @default(true)
+  note        String?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+}
+
+model AdjustmentRule {
+  id            String   @id @default(cuid())
+  target        String // e.g. "floorCondition", "crackLevel", "existingCoating"
+  key           String? // optional specific value key (e.g. "poor", "major")
+  percentChange Float? // percentage change (e.g. 10 for +10%)
+  fixedChange   Float? // fixed dollar change
+  active        Boolean  @default(true)
+  priority      Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model SupportedCity {
+  id                  String                    @id @default(cuid())
+  name                String                    @unique
+  slug                String                    @unique
+  province            String?
+  population          Int?
+  climateNotes        String?
+  laborMultiplier     Float                     @default(1.0)
+  materialMultiplier  Float                     @default(1.0)
+  averagePricing      Float?
+  seoTitle            String?
+  seoDescription      String?
+  active              Boolean                   @default(true)
+  faqs                Faq[]                     @relation("CityFaqs")
+  testimonials        Testimonial[]
+  serviceAvailability CityServiceAvailability[]
+  nearbyCities        CityNearby[]              @relation("nearbyCities")
+  nearbyOf            CityNearby[]              @relation("nearbyOf")
+  createdAt           DateTime                  @default(now())
+  updatedAt           DateTime                  @updatedAt
+  contentPages        ContentPage[]
+}
+
+model GaragePreset {
+  id         String   @id @default(cuid())
+  name       String
+  cars       Int
+  squareFeet Float
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model RecommendationRule {
+  id         String      @id @default(cuid())
+  name       String
+  conditions Json // arbitrary conditions expressed as JSON (field -> value)
+  recommend  CoatingType
+  confidence Float? // optional confidence score 0..1
+  priority   Int         @default(0)
+  active     Boolean     @default(true)
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+}
+
+model ContentPage {
+  id             String          @id @default(cuid())
+  title          String
+  slug           String          @unique
+  pageType       PageType
+  status         PublishStatus   @default(DRAFT)
+  hero           Json?
+  ctaSection     Json?
+  contentBlocks  Json?
+  seoMetadata    SeoMetadata?    @relation(fields: [seoMetadataId], references: [id])
+  seoMetadataId  String?
+  city           SupportedCity?  @relation(fields: [cityId], references: [id])
+  cityId         String?
+  service        ServicePage?    @relation(fields: [servicePageId], references: [id])
+  servicePageId  String?
+  reusableBlocks ReusableBlock[] @relation("PageBlocks")
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+}
+
+model ServicePage {
+  id            String                    @id @default(cuid())
+  title         String
+  slug          String                    @unique
+  description   String?
+  contentBlocks Json?
+  seoMetadata   SeoMetadata?              @relation(fields: [seoMetadataId], references: [id])
+  seoMetadataId String?
+  faqs          Faq[]                     @relation("ServiceFaqs")
+  featuredImage String?
+  availableIn   CityServiceAvailability[]
+  contentPages  ContentPage[]
+  createdAt     DateTime                  @default(now())
+  updatedAt     DateTime                  @updatedAt
+}
+
+model SeoMetadata {
+  id              String        @id @default(cuid())
+  metaTitle       String?
+  metaDescription String?
+  canonicalUrl    String?
+  openGraph       Json?
+  twitterCard     Json?
+  jsonLd          Json?
+  robots          String?
+  noIndex         Boolean       @default(false)
+  sitemap         Boolean       @default(true)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  contentPages    ContentPage[]
+  servicePages    ServicePage[]
+  blogPosts       BlogPost[]
+}
+
+model RedirectRule {
+  id          String   @id @default(cuid())
+  sourcePath  String   @unique
+  destination String
+  statusCode  Int      @default(301)
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now())
+}
+
+model ReusableBlock {
+  id        String        @id @default(cuid())
+  name      String
+  slug      String        @unique
+  content   Json
+  active    Boolean       @default(true)
+  pages     ContentPage[] @relation("PageBlocks")
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+}
+
+model BlogPost {
+  id            String        @id @default(cuid())
+  title         String
+  slug          String        @unique
+  excerpt       String?
+  body          Json
+  author        Author?       @relation(fields: [authorId], references: [id])
+  authorId      String?
+  categories    Category[]    @relation("PostCategories")
+  tags          Tag[]         @relation("PostTags")
+  featuredImage String?
+  status        PublishStatus @default(DRAFT)
+  publishedAt   DateTime?
+  scheduledAt   DateTime?
+  seoMetadata   SeoMetadata?  @relation(fields: [seoMetadataId], references: [id])
+  seoMetadataId String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+}
+
+model Author {
+  id        String     @id @default(cuid())
+  name      String
+  slug      String     @unique
+  bio       String?
+  avatar    String?
+  posts     BlogPost[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+}
+
+model Category {
+  id        String     @id @default(cuid())
+  name      String
+  slug      String     @unique
+  posts     BlogPost[] @relation("PostCategories")
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+}
+
+model Tag {
+  id        String     @id @default(cuid())
+  name      String
+  slug      String     @unique
+  posts     BlogPost[] @relation("PostTags")
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+}
+
+model Faq {
+  id        String          @id @default(cuid())
+  question  String
+  answer    String
+  active    Boolean         @default(true)
+  cities    SupportedCity[] @relation("CityFaqs")
+  services  ServicePage[]   @relation("ServiceFaqs")
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+}
+
+model Testimonial {
+  id           String         @id @default(cuid())
+  customerName String
+  title        String?
+  body         String
+  rating       Int            @default(5)
+  bannerImage  String?
+  beforeImage  String?
+  afterImage   String?
+  city         SupportedCity? @relation(fields: [cityId], references: [id])
+  cityId       String?
+  active       Boolean        @default(true)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+}
+
+model CityServiceAvailability {
+  id            String        @id @default(cuid())
+  city          SupportedCity @relation(fields: [cityId], references: [id], onDelete: Cascade)
+  cityId        String
+  service       ServicePage   @relation(fields: [servicePageId], references: [id], onDelete: Cascade)
+  servicePageId String
+  available     Boolean       @default(true)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+}
+
+model CityNearby {
+  id        String        @id @default(cuid())
+  city      SupportedCity @relation("nearbyCities", fields: [cityId], references: [id], onDelete: Cascade)
+  cityId    String
+  nearby    SupportedCity @relation("nearbyOf", fields: [nearbyId], references: [id], onDelete: Cascade)
+  nearbyId  String
+  distance  Float?
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+}
+
+model CalculationVersion {
+  id         String   @id @default(cuid())
+  entityType String // e.g. "PricingRule", "AdjustmentRule", "CityPricing"
+  entityId   String?
+  userId     String? // optional user id/email who changed it
+  userName   String?
+  change     Json // stores { field: string, old: any, new: any }
+  createdAt  DateTime @default(now())
+}
