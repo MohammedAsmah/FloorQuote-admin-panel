@@ -88,6 +88,11 @@ enum LeadStatus {
   CANCELLED
 }
 
+enum LeadSource {
+  CALCULATOR
+  DIRECT
+}
+
 enum PublishStatus {
   DRAFT
   PUBLISHED
@@ -130,17 +135,38 @@ model Calculation {
 model Lead {
   id                     String                 @id @default(cuid())
   referenceNumber        String                 @unique
-  calculationId          String                 @unique
-  calculation            Calculation            @relation(fields: [calculationId], references: [id], onDelete: Cascade)
+  source                 LeadSource             @default(CALCULATOR)
+  calculationId          String?                @unique
+  calculation            Calculation?           @relation(fields: [calculationId], references: [id], onDelete: Cascade)
   name                   String
   email                  String
   phone                  String
   preferredContactMethod PreferredContactMethod
-  propertyType           PropertyType
-  garageEmpty            Boolean
   preferredContactTime   PreferredContactTime
   additionalNotes        String?
   internalNotes          String?
+
+  // Location fields
+  city                   String                 @default("Calgary")
+  postalCode             String?
+
+  // Direct Quote & Shared Project Fields
+  projectType            String?                @default("garage_floor")
+  projectTypeOther       String?
+  garageSizeDirect       String?
+  squareFeetDirect       Float?
+  coatingTypeDirect      String?
+  floorConditionDirect   String?
+  existingCoatingDirect  String?
+  existingCoatingOther   String?
+  moistureIssueDirect    String?
+  timelineDirect         String?
+  garageAvailability     String?
+
+  // Optional legacy fields for calculator compatibility
+  propertyType           PropertyType?
+  garageEmpty            Boolean?               @default(true)
+
   status                 LeadStatus             @default(NEW)
   saleValue              Float?
   soldAt                 DateTime?

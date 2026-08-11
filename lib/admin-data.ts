@@ -54,7 +54,7 @@ export async function getRecentActivity(limit = 6) {
     referenceNumber: lead.referenceNumber,
     name: lead.name,
     phone: lead.phone,
-    city: lead.calculation.city,
+    city: lead.calculation?.city ?? lead.city ?? "Calgary",
     status: lead.status,
     createdAt: lead.createdAt,
   }));
@@ -70,36 +70,64 @@ export async function getLeads() {
   return leads.map((lead) => ({
     id: lead.id,
     referenceNumber: lead.referenceNumber,
+    source: lead.source,
     name: lead.name,
     email: lead.email,
     phone: lead.phone,
-    city: lead.calculation.city,
-    estimate: lead.calculation.estimatedHigh,
+    city: lead.calculation?.city ?? lead.city ?? "Calgary",
+    postalCode: lead.postalCode ?? null,
+    estimate: lead.calculation?.estimatedHigh ?? null,
     status: lead.status,
     createdAt: lead.createdAt.toISOString(),
     updatedAt: lead.updatedAt.toISOString(),
-    propertyType: lead.propertyType,
+
+    // Contact preferences
+    preferredContactMethod: lead.preferredContactMethod,
     preferredContactTime: lead.preferredContactTime,
-    garageEmpty: lead.garageEmpty,
-    additionalNotes: lead.additionalNotes,
-    internalNotes: lead.internalNotes,
+
+    // Legacy calculator fields
+    propertyType: lead.propertyType ?? null,
+    garageEmpty: lead.garageEmpty ?? null,
+
+    // Direct quote fields
+    projectType: lead.projectType ?? null,
+    projectTypeOther: lead.projectTypeOther ?? null,
+    garageSizeDirect: lead.garageSizeDirect ?? null,
+    squareFeetDirect: lead.squareFeetDirect ?? null,
+    coatingTypeDirect: lead.coatingTypeDirect ?? null,
+    floorConditionDirect: lead.floorConditionDirect ?? null,
+    existingCoatingDirect: lead.existingCoatingDirect ?? null,
+    existingCoatingOther: lead.existingCoatingOther ?? null,
+    moistureIssueDirect: lead.moistureIssueDirect ?? null,
+    timelineDirect: lead.timelineDirect ?? null,
+    garageAvailability: lead.garageAvailability ?? null,
+
+    // Notes & financials
+    additionalNotes: lead.additionalNotes ?? null,
+    internalNotes: lead.internalNotes ?? null,
     saleValue: lead.saleValue ?? null,
     soldAt: lead.soldAt?.toISOString() ?? null,
-    calculation: {
-      city: lead.calculation.city,
-      estimatedLow: lead.calculation.estimatedLow,
-      estimatedHigh: lead.calculation.estimatedHigh,
-      coatingType: lead.calculation.coatingType,
-      floorCondition: lead.calculation.floorCondition,
-      crackLevel: lead.calculation.crackLevel,
-      existingCoating: lead.calculation.existingCoating,
-      decorativeFinish: lead.calculation.decorativeFinish,
-      stemWalls: lead.calculation.stemWalls,
-      stepsCount: lead.calculation.stepsCount,
-      moistureIssues: lead.calculation.moistureIssues,
-      timeline: lead.calculation.timeline,
-      recommendedSystem: lead.calculation.recommendedSystem,
-    },
+
+    // Nested calculation — only present for CALCULATOR source leads
+    calculation: lead.calculation
+      ? {
+          city: lead.calculation.city,
+          squareFeet: lead.calculation.squareFeet,
+          garageSize: lead.calculation.garageSize,
+          estimatedLow: lead.calculation.estimatedLow,
+          estimatedHigh: lead.calculation.estimatedHigh,
+          coatingType: lead.calculation.coatingType,
+          floorCondition: lead.calculation.floorCondition,
+          crackLevel: lead.calculation.crackLevel,
+          existingCoating: lead.calculation.existingCoating,
+          decorativeFinish: lead.calculation.decorativeFinish,
+          stemWalls: lead.calculation.stemWalls,
+          stepsCount: lead.calculation.stepsCount,
+          moistureIssues: lead.calculation.moistureIssues,
+          timeline: lead.calculation.timeline,
+          recommendedSystem: lead.calculation.recommendedSystem,
+        }
+      : null,
   }));
 }
 
@@ -183,23 +211,24 @@ export async function getAnalyticsOverview() {
   }, {});
 
   const topCities = leads.reduce<Record<string, number>>((acc, lead) => {
-    const city = lead.calculation.city;
+    const city = lead.calculation?.city ?? lead.city ?? "Calgary";
     acc[city] = (acc[city] ?? 0) + 1;
     return acc;
   }, {});
 
   const coatingCounts = leads.reduce<Record<string, number>>((acc, lead) => {
-    const coating = lead.calculation.coatingType;
+    const coating = lead.calculation?.coatingType ?? lead.coatingTypeDirect ?? "unknown";
     acc[coating] = (acc[coating] ?? 0) + 1;
     return acc;
   }, {});
 
-  const averageEstimate = leads.length
-    ? leads.reduce((sum, lead) => sum + lead.calculation.estimatedHigh, 0) / leads.length
+  const leadsWithEstimate = leads.filter((l) => l.calculation?.estimatedHigh != null);
+  const averageEstimate = leadsWithEstimate.length
+    ? leadsWithEstimate.reduce((sum, lead) => sum + (lead.calculation?.estimatedHigh ?? 0), 0) / leadsWithEstimate.length
     : 0;
 
   const timelineDemand = leads.reduce<Record<string, number>>((acc, lead) => {
-    const timeline = lead.calculation.timeline;
+    const timeline = lead.calculation?.timeline ?? lead.timelineDirect ?? "unknown";
     acc[timeline] = (acc[timeline] ?? 0) + 1;
     return acc;
   }, {});
